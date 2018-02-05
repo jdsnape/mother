@@ -155,6 +155,7 @@ client.on_message = on_message
 
 required_sections=['mqtt']
 monitors = []
+alert_methods={}
 for section in required_sections:
 	if section not in Config.sections():	
 		logging.error("We need some config for the MQTT topic")
@@ -164,25 +165,27 @@ for section in Config.sections():
 	if section=='app':
 		#Application-wide settings
 		app_config=Config.get("app","log_level")
-	elif section=='slack':
+	elif Config.has_option(section,"alert_method"):
+		if Config.get(section,"alert_method")=="slack":
+	#elif section=='slack':
 		#Configure slack output
-		slack_config={}
-		for thing in Config.options(section):
-			slack_config[thing]=Config.get("slack",thing)
-		slack = slack(slack_config['slack_token'],slack_config['channel'],slack_config['username'])
+			slack_config={}
+			for thing in Config.options(section):
+				slack_config[thing]=Config.get(section,thing)
+			alert_methods[section] = slack(slack_config['slack_token'],slack_config['channel'],slack_config['username'])
 	elif section=='mqtt':
+		logging.debug("Setting up MQTT config")
 		mqtt_config={}
 		for thing in Config.options(section):
 			mqtt_config[thing]=Config.get("mqtt",thing)
 	else:
 		#instantiate new monitoring object based on settings
-		if Config.get(section,"method")=='slack':
-			if Config.get(section, "type")=='state':
-				monitors.append(state_monitor(Config.get(section, "topic"),Config.get(section,"state"),Config.get(section,"message"),slack,section))
-			elif Config.get(section, "type")=='presence':
-				monitors.append(presence_monitor(Config.get(section, "topic"),Config.get(section,"message"),slack,section))
+		if Config.get(section, "type")=='state':
+			monitors.append(state_monitor(Config.get(section, "topic"),Config.get(section,"state"),Config.get(section,"message"),alert_methods[Config.get(section,"method")],section))
+		elif Config.get(section, "type")=='presence':
+			monitors.append(presence_monitor(Config.get(section, "topic"),Config.get(section,"message"),alert_methods[Config.get(section,"method")],section))
 		else:
-			logging.error("Unimplemented error - we can't handle this!")	
+			logging.error("Unimplemented section error - we can't handle this! %s", section)	
 
 logging.debug("Connecting to broker %s:%p",mqtt_config['host'],mqtt_config['port'])
 client.connect(mqtt_config['host'], mqtt_config['port'], 60)
@@ -199,3 +202,5 @@ while True:
 	#We can use this loop for general housekeeping (e.g. checking that we have received confirmation messages)
 	print("starting loop")
 	time.sleep(1000)
+	if 'slack_updates' in alert_methods:
+		alert_methods['slack_updates'].notify("Just letting you know I'm still here :bowtie:")
