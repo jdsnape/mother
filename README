@@ -1,0 +1,7 @@
+*MOTHER*
+
+A simple app to monitor device presence on MQTT channels. 
+
+Supports two methods:
+	- State change: alerts when device moves away then back to a state
+	- Presence: alerts when a device disappears
