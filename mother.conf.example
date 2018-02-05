@@ -1,0 +1,25 @@
+[app]
+log_level=DEBUG
+
+[slack]
+slack_token={token}
+channel=#alerts
+username=mother
+
+
+[mqtt]
+host=127.0.0.1
+port=1883
+
+[dryer]
+type=state
+state=idle
+message=The dryer has finished :sunny:
+method=slack
+topic=/myhome/garage/dryer/state
+
+[conservatory]
+type=presence
+message=seems to have disappeared :scream:
+method=slack
+topic=myhome/groundfloor/livingroom/temperature
