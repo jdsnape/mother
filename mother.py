@@ -54,12 +54,14 @@ class state_monitor(monitor):
 			self.method.notify(self.name+"::"+self.notify_message)
 
 class presence_monitor(monitor):
-	def __init__(self,topic, notify_message, method, name):
+	def __init__(self,topic, notify_message,found_message, method, name):
 		self.times=[]
 		self.last_timestamp=0
 		self.training_complete=False
 		self.average_time=0
-		super(presence_monitor, self).__init__(topic, notify_message,method,name)
+		self.present=-1
+		self.found_message = found_mesage
+		super(presence_monitor, self).__init__(topic, notify_message,found_message,method,name)
 		logging.debug("Initialised monitor object for %s",self.name)
 
 	def on_message(self, client, userdata, message):
@@ -92,10 +94,17 @@ class presence_monitor(monitor):
 	def check_alive(self):
 		if self.last_timestamp > (time.time() - (5*self.average_time)):
 			#We have received a message in the time frame - all good
+			if self.presence==0:
+				logging.debug("Was lost, now is found")
+				self.method.notify(self.name+"::"+self.found_message)
+			self.presence=1
 			logging.debug("We received a message %f, which is in the time frame %f", self.last_timestamp,time.time() - (5*self.average_time))
 		else:
-			self.method.notify(self.name+"::"+self.notify_message)
-			logging.debug("Last message received %f, which is out ofthe time frame %f", self.last_timestamp,time.time() - (5*self.average_time))
+			if self.presence==1:
+				#Only notify the once for each time it disappears
+				self.method.notify(self.name+"::"+self.notify_message)
+				self.presence=0
+			logging.debug("Last message received %f, which is out of the time frame %f", self.last_timestamp,time.time() - (5*self.average_time))
 		t = Timer(5*self.average_time, self.check_alive)
 		t.start()
 
@@ -201,7 +210,7 @@ for section in Config.sections():
 		if Config.get(section, "type")=='state':
 			monitors.append(state_monitor(Config.get(section, "topic"),Config.get(section,"state"),Config.get(section,"message"),alert_methods[Config.get(section,"method")],section))
 		elif Config.get(section, "type")=='presence':
-			monitors.append(presence_monitor(Config.get(section, "topic"),Config.get(section,"message"),alert_methods[Config.get(section,"method")],section))
+			monitors.append(presence_monitor(Config.get(section, "topic"),Config.get(section,"message"),Config.get(section,"found_message"),alert_methods[Config.get(section,"method")],section))
 		else:
 			logging.error("Unimplemented section error - we can't handle this! %s", section)	
 
