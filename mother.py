@@ -27,22 +27,32 @@ class monitor(object):
 class state_monitor(monitor):
 	def __init__(self,topic, return_state,notify_message, method, name):
 		self.return_state=return_state
-		self.current_state=return_state
+		self.current_state=-1
+		self.previous_state=-1
+		self.name=name
 		super(state_monitor,self).__init__(topic, notify_message,method, name)	
 		logging.debug("Initialised monitor object for %s",self.name)
 
 	def on_message(self, client, userdata, message):
-		logging.debug("Received message on our target topic")
+		logging.debug("%s: Received message on our target topic", self.name)
 		logging.debug(message.payload)
-		if self.current_state==self.return_state:
-			if message.payload!=self.return_state:
-				logging.debug("We've switched state")
-				self.current_state=message
+		if self.current_state==-1:
+			logging.debug("%s:We haven't seen a state before, so set state to the message",self.name)
+			self.current_state=message.payload
+			self.previous_state=message.payload
+			return
 		else:
-			if message.payload==self.return_state:
-				logging.debug("We've gone back to the original state - notify!")
-				self.current_state=message.payload
-				self.method.notify(self.name+"::"+self.notify_message)
+			#update states
+			self.previous_state=self.current_state
+			self.current_state=message.payload
+			logging.debug("%s: Previous state: %s, Current_state: %s", self.name,self.previous_state, self.current_state)
+			
+		if self.current_state==self.return_state and self.previous_state != self.return_state:
+			#we've switched state to the notifiable state (return_state)
+			logging.debug("%s: We've gone back to the original state - notify!",self.name)
+			self.current_state=message.payload
+			self.method.notify(self.name+"::"+self.notify_message)
+
 class presence_monitor(monitor):
 	def __init__(self,topic, notify_message, method, name):
 		self.times=[]
@@ -117,15 +127,23 @@ def on_connect(client, userdata, flags, rc):
     # reconnect then subscriptions will be renewed.
    
     client.subscribe("myhome/#")
- 
-    for monitor in monitors:
-	client.message_callback_add(monitor.topic, monitor.on_message)
-	logging.debug("Added callback for %s",monitor.topic)
+    for topic in topics:
+	client.message_callback_add(topic, message_router)
+	#logging.debug("Added callback for %s, topic %s",monitor.name,monitor.topic)
     client.on_message = on_message
+
+def message_router(client, userdata, msg):
+	logging.debug("Received message %s, on topic %s", msg.payload, msg.topic)	
+	#Determine which monitor objects want to receive it
+	if msg.topic in topics:
+		for monitor in 	topics[msg.topic]:
+			logging.debug("Sending message to %s",monitor.name)
+			monitor.on_message(client, userdata, msg)
+	else:
+		logging.debug("Not processing message")
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-	#logging.debug("Not handling message %s, on topic %s", msg.payload, msg.topic)
 	pass
 	#logging.debug("Received message on topic %s, payload %s",msg.topic, msg.payload)
 
@@ -186,6 +204,17 @@ for section in Config.sections():
 			monitors.append(presence_monitor(Config.get(section, "topic"),Config.get(section,"message"),alert_methods[Config.get(section,"method")],section))
 		else:
 			logging.error("Unimplemented section error - we can't handle this! %s", section)	
+
+#create a mapping of topics -> monitor objects for our message router
+topics={}
+
+for monitor in monitors:
+	if monitor.topic in topics:
+		topics[monitor.topic].append(monitor)
+	else:
+		topics[monitor.topic]=[monitor]
+
+
 
 logging.debug("Connecting to broker %s:%p",mqtt_config['host'],mqtt_config['port'])
 client.connect(mqtt_config['host'], mqtt_config['port'], 60)
