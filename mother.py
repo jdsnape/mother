@@ -54,14 +54,14 @@ class state_monitor(monitor):
 			self.method.notify(self.name+"::"+self.notify_message)
 
 class presence_monitor(monitor):
-	def __init__(self,topic, notify_message,found_message, method, name):
+	def __init__(self,topic, notify_message, found_message, method, name):
 		self.times=[]
 		self.last_timestamp=0
 		self.training_complete=False
 		self.average_time=0
 		self.present=-1
-		self.found_message = found_mesage
-		super(presence_monitor, self).__init__(topic, notify_message,found_message,method,name)
+		self.found_message = found_message
+		super(presence_monitor, self).__init__(topic, notify_message,method,name)
 		logging.debug("Initialised monitor object for %s",self.name)
 
 	def on_message(self, client, userdata, message):
