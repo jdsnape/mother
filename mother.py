@@ -110,7 +110,12 @@ class presence_monitor(monitor):
 
                         
         
-                
+class database:
+    def __init__(self, db_file):
+        pass
+
+    def notify(self, text):
+        pass
 
 class slack:
         def __init__(self,token, channel, username):
